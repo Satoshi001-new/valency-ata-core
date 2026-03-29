@@ -8,15 +8,13 @@ from pydantic_ai.models.google import GoogleModel
 app = FastAPI(title="Valency A.T.A. Translation Bridge")
 
 # 2. Setup the Free Gemini Model
-# Vercel will look for 'GEMINI_API_KEY' in your Environment Variables
-gemini_model = GoogleModel(
-    'gemini-1.5-flash',
-    api_key=os.getenv('GEMINI_API_KEY'),
-)
+# Pydantic AI automatically looks for the 'GEMINI_API_KEY' environment variable.
+# We don't pass it inside the GoogleModel() brackets.
+gemini_model = GoogleModel('gemini-1.5-flash')
 
 # 3. Define the Data Schemas
 class LegacyData(BaseModel):
-    raw_payload: str  # e.g. "DEV_01|STAT:ERR|VAL:104.2"
+    raw_payload: str
     source_protocol: str
 
 class ModernOutput(BaseModel):
@@ -39,7 +37,9 @@ agent = Agent(
 
 @app.get("/")
 def health_check():
-    return {"status": "Valency A.T.A. System Online", "engine": "Gemini-1.5-Flash"}
+    # This helps us confirm the environment variable is actually there
+    has_key = "GEMINI_API_KEY" in os.environ
+    return {"status": "Valency A.T.A. System Online", "key_detected": has_key}
 
 @app.post("/translate", response_model=ModernOutput)
 async def translate_payload(data: LegacyData):
@@ -49,7 +49,6 @@ async def translate_payload(data: LegacyData):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Critical for Vercel execution
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
