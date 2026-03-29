@@ -1,45 +1,32 @@
 import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models.google import GoogleModel
 
-# 1. Initialize FastAPI
 app = FastAPI()
 
-# 2. Setup the Model 
-# DO NOT pass api_key here. Pydantic AI reads it from the environment automatically.
+# Simple Model Setup
 gemini_model = GoogleModel('gemini-1.5-flash')
 
-# 3. Define the Data Schemas
-class LegacyData(BaseModel):
-    raw_payload: str
-
 class ModernOutput(BaseModel):
-    device_id: str
-    value_celsius: float
-    maintenance_required: bool
-    ai_analysis: str
+    status: str
+    message: str
 
-# 4. Define the Agent
-agent = Agent(
-    gemini_model,
-    result_type=ModernOutput,
-    system_prompt="Extract industrial data. If VAL > 100, maintenance is True."
-)
+agent = Agent(gemini_model, result_type=ModernOutput)
 
 @app.get("/")
 async def root():
-    # Simple check to see if Vercel sees your key
     return {
         "status": "Valency ATA Online",
-        "key_configured": "GEMINI_API_KEY" in os.environ
+        "key_detected": "GEMINI_API_KEY" in os.environ,
+        "region": "IAD1"
     }
 
-@app.post("/translate")
-async def translate(data: LegacyData):
+@app.get("/test-ai")
+async def test_ai():
     try:
-        result = await agent.run(data.raw_payload)
+        result = await agent.run("Say hello")
         return result.data
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"error": str(e)}
