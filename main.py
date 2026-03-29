@@ -1,46 +1,55 @@
-from fastapi import FastAPI
+import os
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from pydantic_ai import Agent
-import os
+from pydantic_ai.models.google import GoogleModel
 
-app = FastAPI(title="Valency A.T.A. MVP")
+# 1. Initialize FastAPI
+app = FastAPI(title="Valency A.T.A. Translation Bridge")
 
-# 1. Define the Legacy Data Schema (The "Problem")
-class LegacyPayload(BaseModel):
-    raw_string: str  # e.g., "UNIT:04|TEMP:98.6|STAT:OK"
-    protocol: str    # e.g., "MODBUS-RTU"
+# 2. Setup the Free Gemini Model
+# Vercel will look for 'GEMINI_API_KEY' in your Environment Variables
+gemini_model = GoogleModel(
+    'gemini-1.5-flash',
+    api_key=os.getenv('GEMINI_API_KEY'),
+)
 
-# 2. Define the Modern Output Schema (The "Solution")
-class ModernSchema(BaseModel):
-    unit_id: int
-    temperature_celsius: float
+# 3. Define the Data Schemas
+class LegacyData(BaseModel):
+    raw_payload: str  # e.g. "DEV_01|STAT:ERR|VAL:104.2"
+    source_protocol: str
+
+class ModernOutput(BaseModel):
+    device_id: str
     status: str
-    risk_level: str
+    value_celsius: float
+    maintenance_required: bool
+    ai_analysis: str
 
-# 3. Create the Valency Translation Agent
-# Note: For the MVP, we use a clear system prompt
+# 4. Define the Agent
 agent = Agent(
-    'openai:gpt-4o', # Or 'gemini-1.5-flash'
-    result_type=ModernSchema,
+    gemini_model,
+    result_type=ModernOutput,
     system_prompt=(
-        "You are the Valency A.T.A. Translation Engine. "
-        "Convert legacy industrial strings into modern, type-safe JSON. "
-        "Assess risk level based on temperature (Above 100 = High)."
+        "You are the Valency A.T.A. Industrial Translator. "
+        "Extract structured data from legacy strings. "
+        "If 'VAL' is over 100, set maintenance_required to True."
     ),
 )
 
 @app.get("/")
-def home():
-    return {"status": "Valency A.T.A. System Online", "bridge": "Active"}
+def health_check():
+    return {"status": "Valency A.T.A. System Online", "engine": "Gemini-1.5-Flash"}
 
-@app.post("/translate", response_model=ModernSchema)
-async def translate_data(payload: LegacyPayload):
-    """
-    Simulates the bridge between a legacy industrial API and a modern system.
-    """
-    result = await agent.run(payload.raw_string)
-    return result.data
+@app.post("/translate", response_model=ModernOutput)
+async def translate_payload(data: LegacyData):
+    try:
+        result = await agent.run(data.raw_payload)
+        return result.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
+# Critical for Vercel execution
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
