@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models.google import GoogleModel
@@ -7,30 +7,29 @@ from pydantic_ai.models.google import GoogleModel
 # 1. Initialize FastAPI
 app = FastAPI()
 
-# 2. Setup the Model
-# Important: Ensure GEMINI_API_KEY is in your Vercel Environment Variables!
+# 2. Setup the Model (DO NOT PASS api_key IN CODE)
+# Ensure GEMINI_API_KEY is in your Vercel Project Settings -> Env Variables
 gemini_model = GoogleModel('gemini-1.5-flash')
 
-# 3. Define the Data Schema
-class ModernOutput(BaseModel):
+class TranslationResponse(BaseModel):
+    device_id: str
     status: str
-    message: str
+    maintenance: bool
 
-# 4. Define the Agent
-agent = Agent(gemini_model, result_type=ModernOutput)
+# 3. Define the Agent
+agent = Agent(gemini_model, result_type=TranslationResponse)
 
 @app.get("/")
 async def root():
     return {
-        "status": "Valency ATA Online",
-        "key_detected": "GEMINI_API_KEY" in os.environ
+        "status": "Valency ATA Online", 
+        "key_active": "GEMINI_API_KEY" in os.environ
     }
 
-@app.get("/test-ai")
-async def test_ai():
+@app.post("/translate")
+async def translate(payload: str):
     try:
-        # A quick test to ensure the agent is actually talking to Google
-        result = await agent.run("Confirm system connection")
+        result = await agent.run(payload)
         return result.data
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
