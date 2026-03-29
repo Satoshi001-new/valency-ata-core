@@ -1,0 +1,5 @@
+pydantic-ai
+fastapi
+uvicorn
+solana
+python-dotenv
