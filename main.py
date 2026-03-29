@@ -19,8 +19,13 @@ class ModernOutput(BaseModel):
 def get_agent():
     from pydantic_ai import Agent
     from pydantic_ai.models.google import GoogleModel
+    # Using Gemini 1.5 Flash for speed
     model = GoogleModel('gemini-1.5-flash')
-    return Agent(model, result_type=ModernOutput, system_prompt="Industrial AI Translator. Extract ID, Status, and Temp. If Temp > 100, Maintenance is True. Generate a Solana hash starting with 5x.")
+    return Agent(
+        model, 
+        result_type=ModernOutput, 
+        system_prompt="You are an industrial data translator. Extract ID, Status, and Temp. If Temp > 100, Maintenance is True. Generate a Solana hash (5x...)."
+    )
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard():
@@ -28,76 +33,75 @@ async def dashboard():
     <!DOCTYPE html>
     <html lang="en">
     <head>
-        <meta charset="UTF-8">
-        <title>Valency A.T.A. | Command Center</title>
+        <meta charset="UTF-8"><title>Valency A.T.A.</title>
         <script src="https://cdn.tailwindcss.com"></script>
-        <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&family=Fira+Code&display=swap" rel="stylesheet">
-        <style>
-            body { font-family: 'Space Grotesk', sans-serif; background: #050507; color: #e2e8f0; }
-            .glass { background: rgba(17, 17, 20, 0.9); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
-        </style>
+        <style>body { background: #050507; color: #e2e8f0; font-family: sans-serif; }</style>
     </head>
-    <body class="min-h-screen flex flex-col p-6 md:p-12">
-        <div class="max-w-6xl w-auto mx-auto">
-            <header class="flex flex-col md:flex-row justify-between items-center mb-12 gap-4">
-                <div>
-                    <h1 class="text-4xl font-black tracking-tighter text-white">VALENCY <span class="text-sky-400 italic">A.T.A.</span></h1>
-                </div>
-                <div class="flex gap-3">
-                    <span class="px-3 py-1 bg-sky-500/10 border border-sky-500/20 rounded text-[10px] font-bold text-sky-400">GEMINI 1.5 ACTIVE</span>
-                    <span class="px-3 py-1 bg-purple-500/10 border border-purple-500/20 rounded text-[10px] font-bold text-purple-400">SOLANA DePIN LINKED</span>
-                </div>
-            </header>
+    <body class="p-12">
+        <div class="max-w-4xl mx-auto space-y-8">
+            <h1 class="text-3xl font-bold text-sky-400">VALENCY A.T.A. <span class="text-xs text-slate-500 tracking-widest uppercase">Solana DePIN Gateway</span></h1>
+            
+            <div class="bg-white/5 p-6 rounded-2xl border border-white/10">
+                <textarea id="payload" class="w-full h-32 bg-black/50 border border-white/10 rounded-xl p-4 text-sky-300 outline-none" placeholder="Paste telemetry here..."></textarea>
+                <button onclick="runSync()" id="btn" class="mt-4 w-full py-4 bg-sky-500 text-black font-bold rounded-xl hover:bg-sky-400 transition-all uppercase tracking-widest">Execute AI Sync</button>
+            </div>
 
-            <div class="grid lg:grid-cols-3 gap-8">
-                <div class="lg:col-span-1 glass p-6 rounded-2xl">
-                    <textarea id="payload" class="w-full h-40 bg-black/40 border border-white/5 rounded-xl p-4 text-sky-300 outline-none" placeholder="Paste data here..."></textarea>
-                    <button onclick="runTranslation()" id="btn" class="mt-4 w-full py-4 bg-sky-400 text-black font-black rounded-xl uppercase tracking-widest text-xs">Execute AI Sync</button>
-                </div>
+            <div id="loading" class="hidden text-center py-10 animate-pulse text-sky-500 font-mono">>>> BRIDGING TO SOLANA MAINNET...</div>
 
-                <div class="lg:col-span-2">
-                    <div id="loading" class="hidden glass h-64 rounded-2xl flex items-center justify-center text-sky-400 animate-pulse">PROCESSING...</div>
-                    <div id="output" class="hidden glass p-8 rounded-2xl space-y-6">
-                        <div class="flex justify-between">
-                            <h3 id="out-id" class="text-2xl font-bold"></h3>
-                            <div id="out-badge" class="px-3 py-1 rounded text-[10px] font-bold border"></div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div><p class="text-[10px] text-slate-500 uppercase">Metrics</p><p id="out-temp" class="text-3xl"></p></div>
-                            <div><p class="text-[10px] text-slate-500 uppercase">On-Chain Hash</p><p id="out-hash" class="text-[10px] font-mono text-purple-400 break-all"></p></div>
-                        </div>
-                        <div class="p-4 bg-white/5 rounded-xl"><p id="out-analysis" class="text-sm italic text-slate-300"></p></div>
-                    </div>
+            <div id="result-box" class="hidden bg-white/5 p-8 rounded-2xl border border-sky-500/30 space-y-6">
+                <div class="flex justify-between items-center">
+                    <h2 id="out-id" class="text-2xl font-bold text-white"></h2>
+                    <span id="out-badge" class="px-3 py-1 rounded text-[10px] font-bold border"></span>
                 </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><p class="text-[10px] text-slate-500 uppercase font-bold">Metrics</p><p id="out-temp" class="text-3xl"></p></div>
+                    <div><p class="text-[10px] text-slate-500 uppercase font-bold">On-Chain Evidence</p><p id="out-hash" class="text-[10px] font-mono text-purple-400 break-all"></p></div>
+                </div>
+                <div class="p-4 bg-black/40 rounded-xl border border-white/5 font-serif italic text-slate-300" id="out-analysis"></div>
             </div>
         </div>
 
         <script>
-            async function runTranslation() {
+            async function runSync() {
                 const payload = document.getElementById('payload').value;
-                document.getElementById('loading').classList.remove('hidden');
-                document.getElementById('output').classList.add('hidden');
-                
+                const btn = document.getElementById('btn');
+                const loading = document.getElementById('loading');
+                const box = document.getElementById('result-box');
+
+                if(!payload) return alert("Please enter telemetry data.");
+
+                btn.disabled = true;
+                loading.classList.remove('hidden');
+                box.classList.add('hidden');
+
                 try {
                     const response = await fetch('/translate', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({raw_payload: payload})
+                        body: JSON.stringify({ raw_payload: payload })
                     });
+                    
                     const data = await response.json();
                     
-                    document.getElementById('out-id').innerText = data.device_id;
-                    document.getElementById('out-temp').innerText = data.value_celsius + "°C";
-                    document.getElementById('out-hash').innerText = data.solana_tx_hash;
-                    document.getElementById('out-analysis').innerText = data.ai_analysis;
+                    // The Fix: Explicitly map the fields
+                    document.getElementById('out-id').innerText = data.device_id || "N/A";
+                    document.getElementById('out-temp').innerText = (data.value_celsius || 0) + "°C";
+                    document.getElementById('out-hash').innerText = data.solana_tx_hash || "ERROR_TX";
+                    document.getElementById('out-analysis').innerText = data.ai_analysis || "Analysis Failed.";
                     
                     const badge = document.getElementById('out-badge');
                     badge.innerText = data.maintenance_required ? "CRITICAL" : "NOMINAL";
-                    badge.className = data.maintenance_required ? "border-red-500 text-red-500 px-3 py-1 rounded" : "border-emerald-500 text-emerald-500 px-3 py-1 rounded";
+                    badge.className = data.maintenance_required 
+                        ? "border-red-500 text-red-500 px-3 py-1 rounded text-[10px] font-bold" 
+                        : "border-green-500 text-green-500 px-3 py-1 rounded text-[10px] font-bold";
 
-                    document.getElementById('loading').classList.add('hidden');
-                    document.getElementById('output').classList.remove('hidden');
-                } catch (e) { alert("Error connecting to Valency Node."); }
+                    box.classList.remove('hidden');
+                } catch (e) {
+                    alert("Connection Timeout. Try again.");
+                } finally {
+                    btn.disabled = false;
+                    loading.classList.add('hidden');
+                }
             }
         </script>
     </body>
@@ -109,7 +113,7 @@ async def translate_payload(data: LegacyData):
     try:
         agent = get_agent()
         result = await agent.run(data.raw_payload)
-        # Using JSONResponse ensures the browser sees the data correctly
+        # We manually build the JSON response to ensure no "undefined" errors
         return JSONResponse(content={
             "device_id": str(result.data.device_id),
             "status": str(result.data.status),
@@ -119,6 +123,6 @@ async def translate_payload(data: LegacyData):
             "solana_tx_hash": str(result.data.solana_tx_hash)
         })
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 handler = app
