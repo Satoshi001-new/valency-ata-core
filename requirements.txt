@@ -1,4 +1,2 @@
 fastapi
-pydantic-ai
-google-generativeai
 uvicorn
