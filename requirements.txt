@@ -1,2 +1,4 @@
 fastapi
+pydantic-ai==0.0.18
+google-generativeai
 uvicorn
