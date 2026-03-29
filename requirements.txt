@@ -1,5 +1,6 @@
-pydantic-ai
 fastapi
 uvicorn
-solana
-python-dotenv
+pydantic-ai
+pydantic
+google-generativeai
+httpx
