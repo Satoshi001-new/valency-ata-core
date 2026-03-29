@@ -1,41 +1,30 @@
 import os
-import sys
+from fastapi import FastAPI
+from pydantic_ai import Agent
+from pydantic_ai.models.google import GoogleModel
 
-# 1. DEBUG: Catch errors before FastAPI even starts
-try:
-    from fastapi import FastAPI, HTTPException
-    from pydantic import BaseModel
-    from pydantic_ai import Agent
-    from pydantic_ai.models.google import GoogleModel
-except Exception as e:
-    # If this triggers, your requirements.txt is failing
-    print(f"IMPORT ERROR: {e}")
-    sys.exit(1)
-
+# 1. Initialize FastAPI
 app = FastAPI()
 
-# 2. Setup Agent
-# Ensure GEMINI_API_KEY is in Vercel -> Settings -> Environment Variables
+# 2. Setup Agent (Simplified to prevent boot-up crash)
 gemini_model = GoogleModel('gemini-1.5-flash')
-
-class TranslationResponse(BaseModel):
-    status: str
-    message: str
-
-agent = Agent(gemini_model, result_type=TranslationResponse)
+agent = Agent(gemini_model)
 
 @app.get("/")
 async def root():
     return {
         "status": "Valency ATA Online",
-        "python_version": sys.version,
-        "key_found": "GEMINI_API_KEY" in os.environ
+        "key_found": "GEMINI_API_KEY" in os.environ,
+        "msg": "If you see this, the 500 error is fixed."
     }
 
-@app.get("/test-ai")
-async def test_ai():
+@app.get("/ai")
+async def ai_test():
     try:
-        result = await agent.run("Is the Valency engine online?")
-        return result.data
+        result = await agent.run("Confirm connection")
+        return {"response": result.data}
     except Exception as e:
         return {"error": str(e)}
+
+# 3. Vercel looks for 'app' or 'handler'
+handler = app
